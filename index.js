@@ -1,81 +1,112 @@
 const { chromium } = require('playwright'); // Use chromium for Google Chrome
 const notifier = require('node-notifier');
 const fs = require('fs');
+const path = require('path');
 const readline = require('readline');
-const constants = require('./config/constants');
 
-async function promptConfig() {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
+function loadConfig() {
+  const config = require('./config/config.json');
 
-  const ask = (query) => new Promise((resolve) => rl.question(query, resolve));
-  const defaultCookie = constants.cookies?.[0] || {};
-  
-  // Load saved config
-  const savedConfig = constants.readSavedConfig();
-  const savedTargetSite = savedConfig?.target_site || constants.target_site;
-  const savedCookieValue = savedConfig?.cookie_value || defaultCookie.value || '';
-  
-  // Show saved value indicator
-  const targetSitePrompt = savedConfig?.target_site 
-    ? `Slack target URL [${savedTargetSite}] (saved): `
-    : `Slack target URL [${constants.target_site}]: `;
-  const cookieValuePrompt = savedConfig?.cookie_value
-    ? `Slack cookie "d" value [hidden saved value]: `
-    : `Slack cookie "d" value [hidden default]: `;
-
-  const targetSiteInput = await ask(targetSitePrompt);
-  const cookieValueInput = await ask(cookieValuePrompt);
-  const bidMsgInput = await ask(`Bid message (press Enter to keep default) [multiline allowed, end with Enter]:\n`);
-
-  rl.close();
-
-  // Determine final values (use input if provided, otherwise use saved/default)
-  const finalTargetSite = targetSiteInput.trim() || savedTargetSite;
-  const finalCookieValue = cookieValueInput.trim() || savedCookieValue;
-
-  // Save config values to file (only if changed)
-  const configSaved = constants.saveConfig(finalTargetSite, finalCookieValue);
-  if (configSaved) {
-    console.log(`Config saved to ${constants.config_file}`);
-  }
-
-  // Save bid message to file if user provided input
-  const bidMessage = bidMsgInput.trim() || constants.bid_msg_templete;
-  if (bidMsgInput.trim()) {
-    try {
-      fs.writeFileSync(constants.bid_message_file, bidMessage, 'utf8');
-      console.log(`Bid message saved to ${constants.bid_message_file}`);
-    } catch (error) {
-      console.error('Error saving bid message:', error);
+  const bidMessagePath = path.join(__dirname, 'config', 'bid_message.txt');
+  let bid_msg_templete = '';
+  try {
+    if (fs.existsSync(bidMessagePath)) {
+      bid_msg_templete = fs.readFileSync(bidMessagePath, 'utf8').trim();
     }
+  } catch (err) {
+    console.error('Error reading bid_message.txt:', err);
   }
 
   return {
-    target_site: finalTargetSite,
+    target_site: config.target_site,
     cookies: [
       {
-        ...defaultCookie,
-        name: defaultCookie.name || 'd',
-        value: finalCookieValue,
-        domain: defaultCookie.domain || '.slack.com',
-        path: defaultCookie.path || '/',
-        httpOnly: defaultCookie.httpOnly ?? true,
-        secure: defaultCookie.secure ?? true,
-        sameSite: defaultCookie.sameSite || 'Lax',
+        name: 'd',
+        value: config.cookie_value,
+        domain: '.slack.com',
+        path: '/',
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Lax',
       },
     ],
-    bid_msg_templete: bidMessage,
-    logfile: constants.logfile,
+    bid_msg_templete,
   };
 }
 
-var counter = 3063;
+var counter = 0;
+
+function getLatestLogLastEntry() {
+  const logsDir = path.join(__dirname, 'logs');
+  if (!fs.existsSync(logsDir)) return null;
+  const files = fs.readdirSync(logsDir)
+    .filter((f) => f.endsWith('.txt'))
+    .map((f) => ({
+      name: f,
+      path: path.join(logsDir, f),
+      mtime: fs.statSync(path.join(logsDir, f)).mtimeMs,
+    }))
+    .sort((a, b) => b.mtime - a.mtime);
+  if (files.length === 0) return null;
+  const { path: latestPath } = files[0];
+  const content = fs.readFileSync(latestPath, 'utf8').trim();
+  const lines = content.split('\n').filter(Boolean);
+  if (lines.length === 0) return null;
+  const lastLine = lines[lines.length - 1];
+  const m = lastLine.match(/number:\s*(\d+).*i:\s*(\d+).*j:\s*(\d+)/);
+  if (!m) return null;
+  let lastSuccess = 0;
+  for (const line of lines) {
+    const sm = line.match(/success\s+(\d+)/);
+    if (sm) lastSuccess = Math.max(lastSuccess, parseInt(sm[1], 10));
+  }
+  return {
+    pageNumber: parseInt(m[1], 10),
+    i: parseInt(m[2], 10),
+    j: parseInt(m[3], 10),
+    logfile: latestPath,
+    lastSuccess,
+  };
+}
+
+function promptRunMode() {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question('Run from (1) start or (2) continue from last? ', (answer) => {
+      rl.close();
+      const trimmed = (answer || '').trim();
+      if (trimmed === '2') {
+        const last = getLatestLogLastEntry();
+        if (!last) {
+          console.log('No previous log found. Starting from beginning.');
+          resolve({ fromStart: true });
+          return;
+        }
+        console.log(`Resuming from page ${last.pageNumber}, row ${last.i}, cell ${last.j}.`);
+        resolve({ fromStart: false, ...last });
+        return;
+      }
+      resolve({ fromStart: true });
+    });
+  });
+}
 
 (async () => {
-  const { target_site, cookies, bid_msg_templete, logfile } = await promptConfig();
+  const runMode = await promptRunMode();
+
+  const logsDir = path.join(__dirname, 'logs');
+  fs.mkdirSync(logsDir, { recursive: true });
+
+  const logfile = runMode.fromStart
+    ? path.join(logsDir, 'log-' + new Date().toISOString().split('T')[0] + '.txt')
+    : runMode.logfile;
+
+  let pageNumber = runMode.fromStart ? 1 : runMode.pageNumber;
+  let startNumber = runMode.fromStart ? 1 : runMode.i;
+  let startJ = runMode.fromStart ? 0 : runMode.j + 1;
+  if (!runMode.fromStart && runMode.lastSuccess !== undefined) counter = runMode.lastSuccess;
+
+  const { target_site, cookies, bid_msg_templete } = loadConfig();
   const browser = await chromium.launch({ headless: false }); // Run in non-headless mode for debugging
   const context = await browser.newContext({
     viewport: { width: 1200, height: 650 }, // Set the viewport size
@@ -112,10 +143,10 @@ var counter = 3063;
     await page.waitForSelector('.c-select_options_list__option', { timeout: 10000 });
 
     // Select the "A to Z" option by clicking on its text
-    const aToZOption = await page.$('span.c-truncate:text("Z to A")');
+    const aToZOption = await page.$('span.c-truncate:text("A to Z")');
     if (aToZOption) {
       await aToZOption.click();
-      console.log('Selected "Z to A".');
+      console.log('Selected "A to Z".');
     } else {
       throw new Error('"A to Z" option not found');
     }
@@ -125,10 +156,9 @@ var counter = 3063;
 
     await new Promise((resolve) => setTimeout(resolve, 5000)); // Ensure dropdown options are visible
 
-    var pageNumber = 1;
     await pageOver(page, pageNumber);
     await new Promise((resolve) => setTimeout(resolve, 5000));
-    var startNumber = 1;
+
     while(1){
         const rows = await page.$$('.p-grid__rowgroup');
         console.log(`Found ${rows.length} rows.`);
@@ -144,7 +174,8 @@ var counter = 3063;
             const cells = await row.$$('.p-explorer_grid__cell');
             console.log(`Row ${i + 1} contains ${cells.length} cells.`);
 
-            for (let j = 0; j < cells.length; j++) {
+            const jStart = (i === startNumber) ? startJ : 0;
+            for (let j = jStart; j < cells.length; j++) {
                 console.log(`Processing cell ${j + 1} in row ${i + 1}`);
                 const cellSelector = `.p-explorer_grid__cell:nth-child(${j + 1})`;
                 // const cell = await row.$(`.p-explorer_grid__cell:nth-child(${j + 1})`);
@@ -311,11 +342,6 @@ function compairIndiaTime(localTimeText) {
   const [indiaHour, indiaMinute] = indiaTime.split(' ')[1].split(':').map(Number);
 
   return localHour === indiaHour && localMinute === indiaMinute ? true : false;
-}
-
-function extracteMail(emailText) {
-  if (emailText.includes('@shopify.com')) return true;
-  return false;
 }
 
 function saveFile(number,i,j, isSuccess, logfile)

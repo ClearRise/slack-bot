@@ -1,8 +1,12 @@
-Hey! 👋
+Hello 👋 Hope you're doing well
 
-I hope you're doing well. I wanted to reach out because I've been working as a Shopify theme and app engineer for about 5 years now — building custom themes, developing private/public apps, improving store performance, and supporting teams with headless setups.
+I’m a full-stack web developer working as a freelancer from China, focused on building production-ready web applications and custom websites end-to-end. I handle everything from frontend UI/UX to backend logic, APIs, performance optimization, and deployment.
 
-I'm currently open to new opportunities, whether it's full-time roles, contract work, or one-off projects. If you or your team ever need someone who can handle both frontend and backend on Shopify, I'd be happy to chat and see how I can help.
+I’ve worked on real-world projects involving modern JavaScript frameworks, custom integrations, and scalable architectures, always aiming for clean code, maintainability, and solid user experience.
 
-Thanks, and feel free to reach out anytime! 🚀
+You can check out some of my recent work here:
+https://clearriseportfolio.netlify.app/
 
+If you’re looking for help with ongoing development, improvements to an existing product, or a specific project from scratch, I’d be happy to chat and see how I can contribute.
+
+Thanks, and looking forward to connecting!
