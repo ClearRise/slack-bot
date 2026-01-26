@@ -3,9 +3,11 @@ const notifier = require('node-notifier');
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+let skip_members = [];
 
 function loadConfig() {
   const config = require('./config/config.json');
+  skip_members = config.skip_members;
 
   const bidMessagePath = path.join(__dirname, 'config', 'bid_message.txt');
   let bid_msg_templete = '';
@@ -189,7 +191,7 @@ function promptRunMode() {
                 try {
                    await cell.click();
                   console.log(`Clicked cell ${j + 1} in row ${i + 1}`);
-                  await performCellActions(page,pageNumber, i,j, bid_msg_templete, logfile);
+                  await performCellActions(page, pageNumber, i, j, bid_msg_templete, logfile);
                 } catch (error) {
                   console.error(`Error interacting with cell ${j + 1} in row ${i + 1}:`, error);
                 }
@@ -271,7 +273,7 @@ async function pageOver(page, targetPageNumber) {
   console.log(`Successfully navigated to page ${targetPageNumber}`);
 }
 
-async function performCellActions(page,pageNumber,i,j, bid_msg_templete, logfile) {
+async function performCellActions(page, pageNumber, i, j, bid_msg_templete, logfile) {
   try {
     await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait for UI changes
     const localTimeSelector = '.p-local_time__text';
@@ -296,20 +298,30 @@ async function performCellActions(page,pageNumber,i,j, bid_msg_templete, logfile
       
           const messageInputSelector = '[data-qa="message_input"] .ql-editor[contenteditable="true"]';
           const sendButtonSelector = '[data-qa="texty_send_button"]';
-      
-          await page.waitForSelector(messageInputSelector);
-          await page.fill(messageInputSelector, bid_msg_templete);
-          console.log('Message inserted.');
-      
-          await page.waitForSelector(sendButtonSelector);
-          await page.click(sendButtonSelector);
-          console.log('Message sent.');
-          counter++;
-          saveFile(pageNumber,i,j,`success  ${counter}`, logfile) 
+          const memberNameSelector = '.p-view_header__member_name';
+          
+          await page.waitForSelector(memberNameSelector);
+          const memberName = await page.textContent(memberNameSelector);
+          if (skip_members.includes(memberName)) {
+            console.log('Skipping member:', memberName);
+            saveFile(pageNumber,i,j,`skipped  ${counter}`, logfile);
+          } else {
+            await page.waitForSelector(messageInputSelector);
+            await page.fill(messageInputSelector, bid_msg_templete);
+            console.log('Message inserted.');
+        
+            await page.waitForSelector(sendButtonSelector);
+            await page.click(sendButtonSelector);
+            console.log('Message sent.');
+
+            counter++;
+            saveFile(pageNumber,i,j,`success  ${counter}`, logfile);
+          }
       } else {
         saveFile(pageNumber,i,j,emailText+"  "+isIndia, logfile) 
       }
     } catch (error) {
+      console.error('Error performing actions on cell:', error);
       notifier.notify({
         title: 'Playwright Notification',
         message: "Failed",  // This is the message you want to display

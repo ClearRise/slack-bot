@@ -1,12 +1,12 @@
-Hello 👋 Hope you're doing well
+Hello 👋 I hope you’re doing well.
 
-I’m a full-stack web developer working as a freelancer from China, focused on building production-ready web applications and custom websites end-to-end. I handle everything from frontend UI/UX to backend logic, APIs, performance optimization, and deployment.
+I’m a full-stack developer with a strong focus on Shopify app and theme development, while also working on custom web applications and websites beyond Shopify. I work across the full development lifecycle, including frontend UI/UX, backend logic, integrations, performance optimization, and deployment.
 
-I’ve worked on real-world projects involving modern JavaScript frameworks, custom integrations, and scalable architectures, always aiming for clean code, maintainability, and solid user experience.
+I’ve been involved in production projects ranging from Shopify apps and custom storefronts to broader web applications. In my work, I place a strong emphasis on clean, maintainable code and building solutions that are practical, reliable, and easy to evolve over time.
 
-You can check out some of my recent work here:
-https://clearriseportfolio.netlify.app/
+You can view some of my recent work here:
+https://clearrise.netlify.app/
 
-If you’re looking for help with ongoing development, improvements to an existing product, or a specific project from scratch, I’d be happy to chat and see how I can contribute.
+If you’re looking for support with ongoing development, improvements to an existing product, or building something custom from the ground up, I’d be happy to connect and discuss how I can help.
 
-Thanks, and looking forward to connecting!
+Thank you for your time, and I look forward to connecting.

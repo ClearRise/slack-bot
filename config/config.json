@@ -1,4 +1,9 @@
 {
-  "target_site": "https://app.slack.com/client/T5942A3TK/C59136W0G",
-  "cookie_value": "xoxd-5rNTOHHNaknBwUiHpEZPds2mz2ZrqjI6GzP9HUmAc9B31dvmmoEbUApx4VZlfLbL3fDtbBXtasBbLfGgzqoEBCI1krBV06tM4VuO1kRIuqS7Xv0zPxoMMrEi6WhGdzEOqcHek0JWOn12XZ9GBEyo461ju2G53GjE6bLNWpL9axUzAxIqSkKXFI4zbw1aG03KDJVNUmbJta3HZLuv%2BNbDzs%2F%2BlMKj"
+  "target_site": "https://app.slack.com/client/T02EW4BC0AJ/C02EW4BCAUE",
+  "cookie_value": "xoxd-iwJiMVwpZotrOLcRh%2BUXKTD6J36yDJqm7aNmBAF39TnQ0SyUZzal%2BpEw7fqeyhDq7x4jCeSOfEbH92byamN9w%2FDq1ErQW8N5Oh6RZsbWEtIe3iojc%2FXN0V6e5gQDMyj6xMGlf%2Bbj6KVsc35FtbTb9SomPkLqPSOIjHdja9fXPadkX2kqhk1TNlecVsrGUCE8e8mI5p2WApbYWN8f6GJYt%2BXCDi8t6w%3D%3D",
+  "skip_members": [
+    "Alex Senn",
+    "kyle",
+    "Marky Mark"
+  ]
 }
