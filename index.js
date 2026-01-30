@@ -5,21 +5,77 @@ const path = require('path');
 const readline = require('readline');
 let skip_members = [];
 
-function loadConfig() {
-  const config = require('./config/config.json');
-  skip_members = config.skip_members;
+const DATA_DIR = path.join(__dirname, 'data');
 
-  const bidMessagePath = path.join(__dirname, 'config', 'bid_message.txt');
+function getAvailableConfigs() {
+  if (!fs.existsSync(DATA_DIR)) return [];
+  return fs.readdirSync(DATA_DIR, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .filter((d) => fs.existsSync(path.join(DATA_DIR, d.name, 'config.json')))
+    .map((d) => d.name)
+    .sort();
+}
+
+function promptConfigSelection() {
+  const configs = getAvailableConfigs();
+  if (configs.length === 0) {
+    console.error('No configs found in Data/. Add folders like Data/config1/ with config.json inside.');
+    process.exit(1);
+  }
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    console.log('\nAvailable configs:');
+    configs.forEach((name, i) => {
+      console.log(`  ${i + 1}) ${name}`);
+    });
+    const prompt = `Select config (1-${configs.length}): `;
+    rl.question(prompt, (answer) => {
+      rl.close();
+      const num = parseInt((answer || '').trim(), 10);
+      if (num >= 1 && num <= configs.length) {
+        resolve(configs[num - 1]);
+      } else {
+        console.error('Invalid selection. Using first config.');
+        resolve(configs[0]);
+      }
+    });
+  });
+}
+
+function loadConfig(configName) {
+  const configDir = path.join(DATA_DIR, configName);
+  const configPath = path.join(configDir, 'config.json');
+  if (!fs.existsSync(configPath)) {
+    console.error(`Config file not found: ${configPath}`);
+    process.exit(1);
+  }
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+
+  const skippingMembersPath = path.join(configDir, 'skipping_members.txt');
+  skip_members = [];
+  try {
+    if (fs.existsSync(skippingMembersPath)) {
+      skip_members = fs.readFileSync(skippingMembersPath, 'utf8')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+    }
+  } catch (err) {
+    console.error('Error reading skipping_members.txt:', err);
+  }
+
+  const bidMessagePath = path.join(configDir, 'bid_message.txt');
   let bid_msg_templete = '';
   try {
     if (fs.existsSync(bidMessagePath)) {
       bid_msg_templete = fs.readFileSync(bidMessagePath, 'utf8').trim();
     }
   } catch (err) {
-    console.error('Error reading bid_message.txt:', err);
+    console.error('Error reading bid message file:', err);
   }
 
   return {
+    configName,
     target_site: config.target_site,
     cookies: [
       {
@@ -38,8 +94,7 @@ function loadConfig() {
 
 var counter = 0;
 
-function getLatestLogLastEntry() {
-  const logsDir = path.join(__dirname, 'logs');
+function getLatestLogLastEntry(logsDir) {
   if (!fs.existsSync(logsDir)) return null;
   const files = fs.readdirSync(logsDir)
     .filter((f) => f.endsWith('.txt'))
@@ -71,16 +126,16 @@ function getLatestLogLastEntry() {
   };
 }
 
-function promptRunMode() {
+function promptRunMode(logsDir) {
   return new Promise((resolve) => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
     rl.question('Run from (1) start or (2) continue from last? ', (answer) => {
       rl.close();
       const trimmed = (answer || '').trim();
       if (trimmed === '2') {
-        const last = getLatestLogLastEntry();
+        const last = getLatestLogLastEntry(logsDir);
         if (!last) {
-          console.log('No previous log found. Starting from beginning.');
+          console.log('No previous log found for this config. Starting from beginning.');
           resolve({ fromStart: true });
           return;
         }
@@ -94,10 +149,14 @@ function promptRunMode() {
 }
 
 (async () => {
-  const runMode = await promptRunMode();
-
-  const logsDir = path.join(__dirname, 'logs');
+  const configName = await promptConfigSelection();
+  const { target_site, cookies, bid_msg_templete } = loadConfig(configName);
+  const logsDir = path.join(DATA_DIR, configName, 'logs');
   fs.mkdirSync(logsDir, { recursive: true });
+
+  console.log(`Using config: ${configName}, logs: ${logsDir}`);
+
+  const runMode = await promptRunMode(logsDir);
 
   const logfile = runMode.fromStart
     ? path.join(logsDir, 'log-' + new Date().toISOString().split('T')[0] + '.txt')
@@ -107,8 +166,6 @@ function promptRunMode() {
   let startNumber = runMode.fromStart ? 1 : runMode.i;
   let startJ = runMode.fromStart ? 0 : runMode.j + 1;
   if (!runMode.fromStart && runMode.lastSuccess !== undefined) counter = runMode.lastSuccess;
-
-  const { target_site, cookies, bid_msg_templete } = loadConfig();
   const browser = await chromium.launch({ headless: false }); // Run in non-headless mode for debugging
   const context = await browser.newContext({
     viewport: { width: 1200, height: 650 }, // Set the viewport size
